@@ -1,0 +1,36 @@
+pipeline {
+  agent any
+  environment { REPO="https://github.com/<USERNAME>/<REPO>.git" }
+  stages {
+    stage('Checkout') { steps { checkout scm } }
+    stage('Prepare') {
+      steps {
+        sh '''
+          rm -rf gh-pages || true
+          mkdir gh-pages
+          cp -r * gh-pages/
+          rm -f gh-pages/Jenkinsfile
+          rm -rf gh-pages/.git || true
+        '''
+      }
+    }
+    stage('Deploy') {
+      steps {
+        withCredentials([string(credentialsId:'github-token', variable:'GHTOKEN')]) {
+          sh '''
+            cd gh-pages
+            git init
+            git config user.name "jenkins"
+            git config user.email "jenkins@localhost"
+            git checkout -b gh-pages || git checkout gh-pages
+            git add -A
+            git commit -m "Deploy from Jenkins: ${BUILD_NUMBER}" || true
+            git remote add origin https://${GHTOKEN}@github.com/<USERNAME>/<REPO>.git
+            git push --force origin gh-pages
+          '''
+        }
+      }
+    }
+  }
+  post { success { echo "Deployed to gh-pages" } failure { echo "Deployment failed" } }
+}
